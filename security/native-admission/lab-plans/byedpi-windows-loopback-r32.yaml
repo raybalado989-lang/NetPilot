@@ -1,0 +1,84 @@
+schema_version: 1
+lab_id: byedpi-windows-loopback-r32
+status: LAB_ONLY
+production_admission: BLOCK
+production_integration: BLOCK
+native_engine_release_effect: NONE
+
+candidate:
+  engine: byedpi
+  upstream_release: v0.17.3
+  upstream_commit: 7efde1b1296eaaa187b70e951894dde17527489c
+  upstream_tree: 8d13f6f5939190cd27ee68696247073a00b3e7dc
+  reviewed_patchset:
+    - 0001-loopback-only-listener.patch
+    - 0002-kavl-iterator-no-before-array-sentinel.patch
+    - 0003-pid-file-fail-safe-write.patch
+    - 0004-kavl-empty-erase-guard.patch
+    - 0005-windows-socket-handle-narrowing-guard.patch
+    - 0006-windows-wait-result-range.patch
+    - 0007-windows-aux-socket-probes.patch
+  expected_windows_binary_sha256: 866e99c3c7690326cc6e365fe02980f06ae2b394c045555674fb95db52b0dbdd
+
+execution_boundary:
+  build_runner: ubuntu-24.04
+  execution_runner: windows-2025
+  elevation_required: false
+  service_install_allowed: false
+  driver_install_allowed: false
+  windivert_allowed: false
+  firewall_change_allowed: false
+  registry_change_allowed: false
+  system_proxy_change_allowed: false
+  persistence_allowed: false
+  external_network_from_candidate_allowed: false
+  listener_scope: 127.0.0.1_only
+  user_supplied_arguments_allowed: false
+  user_supplied_paths_allowed: false
+  user_supplied_payload_allowed: false
+
+fixed_runtime_plan:
+  arguments:
+    - -i
+    - 127.0.0.1
+    - -p
+    - lab_ephemeral_port
+    - -N
+    - -U
+    - -c
+    - "8"
+    - -x
+    - "0"
+  notes:
+    - Port is selected by the lab harness from an unused loopback TCP port.
+    - No desync strategy is required for this boundary test.
+    - The client performs only a local SOCKS5 method-negotiation greeting.
+    - No CONNECT request to an external destination is sent.
+
+required_pass_evidence:
+  - exact source commit and tree verified before build
+  - exact reviewed patch blobs and SHA-256 values verified before application
+  - resulting Windows binary SHA-256 equals expected_windows_binary_sha256
+  - process starts without elevation
+  - listener appears only on 127.0.0.1
+  - wildcard and LAN listeners on the selected port are absent
+  - local SOCKS5 greeting receives 0x05 0x00
+  - candidate has no established non-loopback TCP connection
+  - forced termination releases the listener port
+  - exact same binary can restart on the same port
+  - second local SOCKS5 greeting succeeds
+  - final termination leaves no candidate process and no listener on the selected port
+
+fail_closed_rules:
+  - Any binary hash drift is FAIL and blocks execution.
+  - Any wildcard, LAN, or non-loopback listener is FAIL.
+  - Any established non-loopback candidate connection is FAIL.
+  - Any residual listener or process after cleanup is FAIL.
+  - Any need for admin, service installation, driver loading, firewall mutation, system proxy mutation, or WinDivert is FAIL.
+  - Lab PASS does not grant ADMIT, production execution, integration, transparent routing, or automatic updates.
+
+next_gate_after_pass:
+  - typed NetPilot ByeDPI adapter design
+  - supervised service-owned start/stop lifecycle
+  - bounded resource policy
+  - local HTTP/SOCKS functional lab before any real external service test
